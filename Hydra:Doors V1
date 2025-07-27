@@ -5,6 +5,13 @@ if not Library or not Library.CreateWindow then
     return
 end
 
+--// Services
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+local Mouse = LocalPlayer:GetMouse()
+
 --// Create Window
 local Window = Library:CreateWindow({
     Title = "Hydra",
@@ -17,139 +24,41 @@ local MainTab = Window:AddTab("Main")
 local ExploitsTab = Window:AddTab("Exploits")
 local VisualsTab = Window:AddTab("Visuals")
 local FloorTab = Window:AddTab("Floor")
-local UITab = Window:AddTab("UI")
-local SettingsTab = Window:AddTab("Settings")
+local UISettingsTab = Window:AddTab("UI Settings")
 local CreditsTab = Window:AddTab("Credits")
 
---// Main Tab Groups (columns inside Main tab)
+--// Main Tab Groups
 local PlayerGroup = MainTab:AddLeftGroupbox("Player")
 local AutomationGroup = MainTab:AddRightGroupbox("Automation")
 local ReachGroup = MainTab:AddLeftGroupbox("Reach")
 local MiscGroup = MainTab:AddRightGroupbox("Misc")
 
--- Speed Hack variables and connections
-local HumanModCons = {
-    wsLoop = nil,
-    wsCA = nil
-}
-
+--// Helper function to check number
 local function isNumber(val)
     return tonumber(val) ~= nil
 end
 
+--// HumanModCons for connections
+local HumanModCons = {
+    wsLoop = nil,
+    wsCA = nil,
+    jpLoop = nil,
+    jpCA = nil,
+}
+
+--// Variables
 local speedHackEnabled = false
 local speedValue = 16
+local jumpHeightEnabled = false
+local jumpHeightValue = 50
+local antiAfkEnabled = false
+local antiAfkConnections = {}
 
--- Speed Hack Button (toggles on/off)
-PlayerGroup:AddToggle("SpeedHackToggle", {
-    Text = "Enable Speed Hack",
-    Default = false,
-    Callback = function(value)
-        speedHackEnabled = value
-        local Player = game:GetService("Players").LocalPlayer
-
-        if value then
-            local Char = Player.Character or Player.CharacterAdded:Wait()
-            local Human = Char:FindFirstChildOfClass("Humanoid")
-
-            if Human then
-                local function WalkSpeedChange()
-                    if Char and Human then
-                        Human.WalkSpeed = speedValue
-                    end
-                end
-
-                WalkSpeedChange()
-
-                if HumanModCons.wsLoop then HumanModCons.wsLoop:Disconnect() end
-                if HumanModCons.wsCA then HumanModCons.wsCA:Disconnect() end
-
-                HumanModCons.wsLoop = Human:GetPropertyChangedSignal("WalkSpeed"):Connect(WalkSpeedChange)
-                HumanModCons.wsCA = Player.CharacterAdded:Connect(function(newChar)
-                    Char = newChar
-                    Human = newChar:WaitForChild("Humanoid")
-                    WalkSpeedChange()
-                    if HumanModCons.wsLoop then HumanModCons.wsLoop:Disconnect() end
-                    HumanModCons.wsLoop = Human:GetPropertyChangedSignal("WalkSpeed"):Connect(WalkSpeedChange)
-                end)
-            end
-        else
-            if HumanModCons.wsLoop then HumanModCons.wsLoop:Disconnect() HumanModCons.wsLoop = nil end
-            if HumanModCons.wsCA then HumanModCons.wsCA:Disconnect() HumanModCons.wsCA = nil end
-            local Char = Player.Character
-            local Human = Char and Char:FindFirstChildOfClass("Humanoid")
-            if Human then
-                Human.WalkSpeed = 16 -- default Roblox walk speed
-            end
-        end
-    end
-})
-
--- Speed Hack Slider (adjusts speedValue)
-PlayerGroup:AddSlider("SpeedHackSlider", {
-    Text = "Speed Hack Speed",
-    Default = 16,
-    Min = 16,
-    Max = 100,
-    Rounding = 1,
-    Callback = function(value)
-        speedValue = value
-        if speedHackEnabled then
-            local Player = game:GetService("Players").LocalPlayer
-            local Char = Player.Character
-            local Human = Char and Char:FindFirstChildOfClass("Humanoid")
-            if Human then
-                Human.WalkSpeed = speedValue
-            end
-        end
-    end
-})
-
--- Example Automation group UI (you can add your own here)
-AutomationGroup:AddButton({
-    Text = "Start Auto Farm",
-    Callback = function()
-        print("Auto Farm started!")
-        -- Add your automation logic here
-    end,
-})
-
--- Example Reach group UI
-ReachGroup:AddSlider("ReachDistance", {
-    Text = "Reach Distance",
-    Default = 10,
-    Min = 1,
-    Max = 50,
-    Rounding = 1,
-    Callback = function(value)
-        print("Reach Distance set to:", value)
-        -- Add your reach adjustment code here
-    end,
-})
-
--- Example Misc group UI
-MiscGroup:AddToggle("ESP", {
-    Text = "Enable ESP",
-    Default = false,
-    Callback = function(value)
-        print("ESP toggled:", value)
-        -- Add your ESP code here
-    end,
-})
-
---// Speed Bypasser Setup
-local Player = game:GetService('Players').LocalPlayer
+--// Speed Bypass Setup
+local Player = Players.LocalPlayer
 local Character = Player.Character or Player.CharacterAdded:Wait()
-
 local Collision = Character:WaitForChild("Collision", 9e9)
 local HumanoidRootPart = Character:WaitForChild("HumanoidRootPart", 9e9)
-
--- Remove any existing clones just in case
-local existingClone = Character:FindFirstChild("ClonedCollision")
-if existingClone then
-    existingClone:Destroy()
-end
-
 local CollisionClone = Collision:Clone()
 CollisionClone.Name = "ClonedCollision"
 CollisionClone.Parent = Character
@@ -161,15 +70,9 @@ if CollisionClone:FindFirstChild("CollisionCrouch") then
 end
 
 Player.CharacterAdded:Connect(function(NewCharacter)
-    -- Cleanup old clone if exists
-    local oldClone = NewCharacter:FindFirstChild("ClonedCollision")
-    if oldClone then
-        oldClone:Destroy()
-    end
-
     Collision = NewCharacter:WaitForChild("Collision", 9e9)
     HumanoidRootPart = NewCharacter:WaitForChild("HumanoidRootPart", 9e9)
-
+    if CollisionClone then CollisionClone:Destroy() end
     CollisionClone = Collision:Clone()
     CollisionClone.Name = "ClonedCollision"
     CollisionClone.Parent = NewCharacter
@@ -178,38 +81,225 @@ Player.CharacterAdded:Connect(function(NewCharacter)
     if CollisionClone:FindFirstChild("CollisionCrouch") then
         CollisionClone.CollisionCrouch:Destroy()
     end
-
     Character = NewCharacter
 end)
 
-getgenv().SpeedBypass = false
+local speedBypassRunning = false
+local speedBypassThread
 
---// UI Toggle inside Exploits tab
-ExploitsTab:AddToggle("SpeedBypass", {
-    Text = "Enable Speed Bypass",
+--// Speed Hack
+PlayerGroup:AddToggle("SpeedHackToggle", {
+    Text = "Enable Speed Hack",
     Default = false,
-    Callback = function(Value)
-        getgenv().SpeedBypass = Value
+    Callback = function(value)
+        speedHackEnabled = value
+        if value then
+            getgenv().SpeedBypass = true
+
+            if not speedBypassRunning then
+                speedBypassRunning = true
+                speedBypassThread = task.spawn(function()
+                    while speedBypassRunning do
+                        task.wait(0.22)
+                        if getgenv().SpeedBypass and CollisionClone and Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") then
+                            local hrp = Player.Character.HumanoidRootPart
+                            if CollisionClone.Parent ~= Player.Character then
+                                CollisionClone.Parent = Player.Character
+                            end
+
+                            if not hrp.Anchored then
+                                CollisionClone.Massless = false
+                            else
+                                CollisionClone.Massless = true
+                                task.wait(1)
+                            end
+                        elseif CollisionClone then
+                            CollisionClone.Massless = true
+                        end
+                    end
+                end)
+            end
+
+            local Char = Player.Character or Player.CharacterAdded:Wait()
+            local Human = Char:FindFirstChildOfClass("Humanoid")
+            if Human then
+                local function WalkSpeedChange()
+                    if Char and Human then
+                        Human.WalkSpeed = speedValue
+                    end
+                end
+                WalkSpeedChange()
+                if HumanModCons.wsLoop then HumanModCons.wsLoop:Disconnect() end
+                if HumanModCons.wsCA then HumanModCons.wsCA:Disconnect() end
+                HumanModCons.wsLoop = Human:GetPropertyChangedSignal("WalkSpeed"):Connect(WalkSpeedChange)
+                HumanModCons.wsCA = Player.CharacterAdded:Connect(function(newChar)
+                    Char = newChar
+                    Human = newChar:WaitForChild("Humanoid")
+                    WalkSpeedChange()
+                    if HumanModCons.wsLoop then HumanModCons.wsLoop:Disconnect() end
+                    HumanModCons.wsLoop = Human:GetPropertyChangedSignal("WalkSpeed"):Connect(WalkSpeedChange)
+                end)
+            end
+        else
+            getgenv().SpeedBypass = false
+            speedBypassRunning = false
+            speedBypassThread = nil
+
+            if HumanModCons.wsLoop then HumanModCons.wsLoop:Disconnect() HumanModCons.wsLoop = nil end
+            if HumanModCons.wsCA then HumanModCons.wsCA:Disconnect() HumanModCons.wsCA = nil end
+
+            local Char = Player.Character
+            local Human = Char and Char:FindFirstChildOfClass("Humanoid")
+            if Human then
+                Human.WalkSpeed = 16
+            end
+        end
+    end
+})
+
+PlayerGroup:AddSlider("SpeedHackSlider", {
+    Text = "Speed Hack Speed",
+    Default = 16,
+    Min = 16,
+    Max = 100,
+    Rounding = 1,
+    Callback = function(value)
+        speedValue = value
+        if speedHackEnabled then
+            local Char = Player.Character
+            local Human = Char and Char:FindFirstChildOfClass("Humanoid")
+            if Human then
+                Human.WalkSpeed = speedValue
+            end
+        end
+    end
+})
+
+--// Jump
+PlayerGroup:AddToggle("JumpHeightToggle", {
+    Text = "Enable Jump",
+    Default = false,
+    Callback = function(value)
+        jumpHeightEnabled = value
+        if value then
+            local Char = Player.Character or Player.CharacterAdded:Wait()
+            local Human = Char:FindFirstChildOfClass("Humanoid")
+
+            if Human then
+                local function JumpPowerChange()
+                    if Char and Human then
+                        if Human.UseJumpPower then
+                            Human.JumpPower = jumpHeightValue
+                        else
+                            Human.JumpHeight = jumpHeightValue
+                        end
+                    end
+                end
+
+                JumpPowerChange()
+
+                if HumanModCons.jpLoop then HumanModCons.jpLoop:Disconnect() end
+                if HumanModCons.jpCA then HumanModCons.jpCA:Disconnect() end
+
+                HumanModCons.jpLoop = Human:GetPropertyChangedSignal("JumpPower"):Connect(JumpPowerChange)
+                HumanModCons.jpCA = Player.CharacterAdded:Connect(function(newChar)
+                    Char = newChar
+                    Human = newChar:WaitForChild("Humanoid")
+                    JumpPowerChange()
+                    if HumanModCons.jpLoop then HumanModCons.jpLoop:Disconnect() end
+                    HumanModCons.jpLoop = Human:GetPropertyChangedSignal("JumpPower"):Connect(JumpPowerChange)
+                end)
+            end
+        else
+            if HumanModCons.jpLoop then HumanModCons.jpLoop:Disconnect() HumanModCons.jpLoop = nil end
+            if HumanModCons.jpCA then HumanModCons.jpCA:Disconnect() HumanModCons.jpCA = nil end
+            local Char = Player.Character
+            local Human = Char and Char:FindFirstChildOfClass("Humanoid")
+            if Human then
+                if Human.UseJumpPower then
+                    Human.JumpPower = 50
+                else
+                    Human.JumpHeight = 50
+                end
+            end
+        end
+    end
+})
+
+PlayerGroup:AddSlider("JumpHeightSlider", {
+    Text = "Jump Height",
+    Default = 50,
+    Min = 20,
+    Max = 200,
+    Rounding = 1,
+    Callback = function(value)
+        jumpHeightValue = value
+        if jumpHeightEnabled then
+            local Char = Player.Character
+            local Human = Char and Char:FindFirstChildOfClass("Humanoid")
+            if Human then
+                if Human.UseJumpPower then
+                    Human.JumpPower = jumpHeightValue
+                else
+                    Human.JumpHeight = jumpHeightValue
+                end
+            end
+        end
+    end
+})
+
+--// Misc: Anti-AFK
+MiscGroup:AddToggle("AntiAFKToggle", {
+    Text = "Enable Anti-AFK",
+    Default = false,
+    Callback = function(value)
+        antiAfkEnabled = value
+
+        if value then
+            for _, conn in pairs(antiAfkConnections) do
+                if conn then conn:Disconnect() end
+            end
+            antiAfkConnections = {}
+
+            local GC = getconnections or get_signal_cons
+            if GC then
+                for i, v in pairs(GC(LocalPlayer.Idled)) do
+                    if v.Disable then v:Disable() elseif v.Disconnect then v:Disconnect() end
+                end
+            else
+                local VirtualUser = cloneref(game:GetService("VirtualUser"))
+                local conn = LocalPlayer.Idled:Connect(function()
+                    VirtualUser:CaptureController()
+                    VirtualUser:ClickButton2(Vector2.new())
+                end)
+                table.insert(antiAfkConnections, conn)
+            end
+        else
+            for _, conn in pairs(antiAfkConnections) do
+                if conn then conn:Disconnect() end
+            end
+            antiAfkConnections = {}
+        end
+    end
+})
+
+--// Misc: Give TP Tool Button
+MiscGroup:AddButton({
+    Text = "Give TP Tool",
+    Callback = function()
+        local TpTool = Instance.new("Tool")
+        TpTool.Name = "Teleport Tool"
+        TpTool.RequiresHandle = false
+        TpTool.Parent = LocalPlayer.Backpack
+        TpTool.Activated:Connect(function()
+            local Char = LocalPlayer.Character or workspace:FindFirstChild(LocalPlayer.Name)
+            local HRP = Char and Char:FindFirstChild("HumanoidRootPart")
+            if HRP and Mouse then
+                HRP.CFrame = CFrame.new(Mouse.Hit.X, Mouse.Hit.Y + 3, Mouse.Hit.Z, select(4, HRP.CFrame:components()))
+            end
+        end)
     end
 })
 
 --// Initialize UI
 Library:Init()
-
---// Main Loop to toggle Massless on the cloned collision
-task.spawn(function()
-    while task.wait(0.22) do
-        if getgenv().SpeedBypass and CollisionClone and Player.Character then
-            local hrp = Player.Character:FindFirstChild("HumanoidRootPart")
-            if hrp then
-                if not hrp.Anchored then
-                    CollisionClone.Massless = false
-                else
-                    CollisionClone.Massless = true
-                end
-            end
-        elseif CollisionClone then
-            CollisionClone.Massless = true
-        end
-    end
-end)
