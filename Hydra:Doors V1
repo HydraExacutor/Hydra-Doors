@@ -10,7 +10,6 @@ local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
-local Mouse = LocalPlayer:GetMouse()
 
 --// Create Window
 local Window = Library:CreateWindow({
@@ -64,7 +63,6 @@ CollisionClone.Name = "ClonedCollision"
 CollisionClone.Parent = Character
 CollisionClone.CanCollide = false
 CollisionClone.Massless = true
-
 if CollisionClone:FindFirstChild("CollisionCrouch") then
     CollisionClone.CollisionCrouch:Destroy()
 end
@@ -84,10 +82,30 @@ Player.CharacterAdded:Connect(function(NewCharacter)
     Character = NewCharacter
 end)
 
-local speedBypassRunning = false
-local speedBypassThread
+getgenv().SpeedBypass = false
 
---// Speed Hack
+task.spawn(function()
+    while task.wait(0.22) do
+        if getgenv().SpeedBypass == true and CollisionClone and Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") then
+            local hrp = Player.Character.HumanoidRootPart
+            if not hrp.Anchored then
+                CollisionClone.Massless = false
+            else
+                CollisionClone.Massless = true
+                task.wait(1)
+            end
+            if CollisionClone then
+                CollisionClone.Massless = true
+            end
+        else
+            if CollisionClone then
+                CollisionClone.Massless = true
+            end
+        end
+    end
+end)
+
+--// Player: Speed Hack + Slider
 PlayerGroup:AddToggle("SpeedHackToggle", {
     Text = "Enable Speed Hack",
     Default = false,
@@ -95,31 +113,6 @@ PlayerGroup:AddToggle("SpeedHackToggle", {
         speedHackEnabled = value
         if value then
             getgenv().SpeedBypass = true
-
-            if not speedBypassRunning then
-                speedBypassRunning = true
-                speedBypassThread = task.spawn(function()
-                    while speedBypassRunning do
-                        task.wait(0.22)
-                        if getgenv().SpeedBypass and CollisionClone and Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") then
-                            local hrp = Player.Character.HumanoidRootPart
-                            if CollisionClone.Parent ~= Player.Character then
-                                CollisionClone.Parent = Player.Character
-                            end
-
-                            if not hrp.Anchored then
-                                CollisionClone.Massless = false
-                            else
-                                CollisionClone.Massless = true
-                                task.wait(1)
-                            end
-                        elseif CollisionClone then
-                            CollisionClone.Massless = true
-                        end
-                    end
-                end)
-            end
-
             local Char = Player.Character or Player.CharacterAdded:Wait()
             local Human = Char:FindFirstChildOfClass("Humanoid")
             if Human then
@@ -142,17 +135,11 @@ PlayerGroup:AddToggle("SpeedHackToggle", {
             end
         else
             getgenv().SpeedBypass = false
-            speedBypassRunning = false
-            speedBypassThread = nil
-
             if HumanModCons.wsLoop then HumanModCons.wsLoop:Disconnect() HumanModCons.wsLoop = nil end
             if HumanModCons.wsCA then HumanModCons.wsCA:Disconnect() HumanModCons.wsCA = nil end
-
             local Char = Player.Character
             local Human = Char and Char:FindFirstChildOfClass("Humanoid")
-            if Human then
-                Human.WalkSpeed = 16
-            end
+            if Human then Human.WalkSpeed = 16 end
         end
     end
 })
@@ -175,7 +162,7 @@ PlayerGroup:AddSlider("SpeedHackSlider", {
     end
 })
 
---// Jump
+--// Player: Jump Height Toggle + Slider
 PlayerGroup:AddToggle("JumpHeightToggle", {
     Text = "Enable Jump",
     Default = false,
@@ -184,23 +171,17 @@ PlayerGroup:AddToggle("JumpHeightToggle", {
         if value then
             local Char = Player.Character or Player.CharacterAdded:Wait()
             local Human = Char:FindFirstChildOfClass("Humanoid")
-
             if Human then
                 local function JumpPowerChange()
-                    if Char and Human then
-                        if Human.UseJumpPower then
-                            Human.JumpPower = jumpHeightValue
-                        else
-                            Human.JumpHeight = jumpHeightValue
-                        end
+                    if Human.UseJumpPower then
+                        Human.JumpPower = jumpHeightValue
+                    else
+                        Human.JumpHeight = jumpHeightValue
                     end
                 end
-
                 JumpPowerChange()
-
                 if HumanModCons.jpLoop then HumanModCons.jpLoop:Disconnect() end
                 if HumanModCons.jpCA then HumanModCons.jpCA:Disconnect() end
-
                 HumanModCons.jpLoop = Human:GetPropertyChangedSignal("JumpPower"):Connect(JumpPowerChange)
                 HumanModCons.jpCA = Player.CharacterAdded:Connect(function(newChar)
                     Char = newChar
@@ -254,13 +235,9 @@ MiscGroup:AddToggle("AntiAFKToggle", {
     Default = false,
     Callback = function(value)
         antiAfkEnabled = value
-
         if value then
-            for _, conn in pairs(antiAfkConnections) do
-                if conn then conn:Disconnect() end
-            end
+            for _, conn in pairs(antiAfkConnections) do if conn then conn:Disconnect() end end
             antiAfkConnections = {}
-
             local GC = getconnections or get_signal_cons
             if GC then
                 for i, v in pairs(GC(LocalPlayer.Idled)) do
@@ -275,31 +252,42 @@ MiscGroup:AddToggle("AntiAFKToggle", {
                 table.insert(antiAfkConnections, conn)
             end
         else
-            for _, conn in pairs(antiAfkConnections) do
-                if conn then conn:Disconnect() end
-            end
+            for _, conn in pairs(antiAfkConnections) do if conn then conn:Disconnect() end end
             antiAfkConnections = {}
         end
     end
 })
 
---// Misc: Give TP Tool Button
-MiscGroup:AddButton({
-    Text = "Give TP Tool",
-    Callback = function()
-        local TpTool = Instance.new("Tool")
-        TpTool.Name = "Teleport Tool"
-        TpTool.RequiresHandle = false
-        TpTool.Parent = LocalPlayer.Backpack
-        TpTool.Activated:Connect(function()
-            local Char = LocalPlayer.Character or workspace:FindFirstChild(LocalPlayer.Name)
-            local HRP = Char and Char:FindFirstChild("HumanoidRootPart")
-            if HRP and Mouse then
+--// Misc: TP Tool Toggle
+local tpToolInstance = nil
+MiscGroup:AddToggle("TPToolToggle", {
+    Text = "Enable TP Tool",
+    Default = false,
+    Callback = function(state)
+        if state then
+            local TpTool = Instance.new("Tool")
+            TpTool.Name = "Teleport Tool"
+            TpTool.RequiresHandle = false
+            TpTool.Parent = LocalPlayer.Backpack
+            tpToolInstance = TpTool
+
+            TpTool.Activated:Connect(function()
+                local Char = LocalPlayer.Character or workspace:FindFirstChild(LocalPlayer.Name)
+                local HRP = Char and Char:FindFirstChild("HumanoidRootPart")
+                if not Char or not HRP then
+                    return warn("Failed to find HumanoidRootPart")
+                end
+                local Mouse = LocalPlayer:GetMouse()
                 HRP.CFrame = CFrame.new(Mouse.Hit.X, Mouse.Hit.Y + 3, Mouse.Hit.Z, select(4, HRP.CFrame:components()))
+            end)
+        else
+            if tpToolInstance and tpToolInstance.Parent then
+                tpToolInstance:Destroy()
+                tpToolInstance = nil
             end
-        end)
+        end
     end
 })
 
---// Initialize UI
+--// Init UI
 Library:Init()
